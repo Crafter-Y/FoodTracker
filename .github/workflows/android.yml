@@ -1,9 +1,10 @@
 name: Build & Publish Release APK
 
 on:
-  push:
-    tags:
-      - "*"
+  - workflow_dispatch
+  - push:
+      tags:
+        - "*"
 
 jobs:
   Gradle:
