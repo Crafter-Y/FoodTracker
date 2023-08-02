@@ -1,27 +1,11 @@
-import { Text } from 'react-native'
-import React, { useEffect, useState } from 'react'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import useDatabase from '@/hooks/useDatabase'
-import { Store } from '@/entities/store'
+import { Text, View } from 'react-native'
+import React from 'react'
 
 const Dashboard = () => {
-    const { dataSource, isReady } = useDatabase();
-    const [stores, setStores] = useState<Store[]>([])
-
-    useEffect(() => {
-        if (!isReady) return;
-        (async () => {
-            let repo = dataSource.getRepository(Store);
-            let allStores = await repo.find();
-            setStores(allStores)
-        })()
-    }, [isReady])
-
     return (
-        <SafeAreaView>
+        <View>
             <Text className="text-red-500">Dashboard</Text>
-            <Text>{JSON.stringify(stores)}</Text>
-        </SafeAreaView>
+        </View>
     )
 }
 

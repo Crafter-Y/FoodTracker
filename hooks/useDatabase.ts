@@ -2,6 +2,8 @@ import { useEffect, useContext, useState } from "react";
 import { DataSource } from "typeorm/browser";
 import { AppContext, AppContextType } from "@/helpers/AppContext";
 import { Store } from "@/entities/store";
+import { Product } from "@/entities/product";
+import { ConsumedItem } from "@/entities/consumedItem";
 
 export default function useDatabase() {
     const { dataSource, setDataSource } = useContext(AppContext) as AppContextType;
@@ -33,10 +35,10 @@ export default function useDatabase() {
             ds = dataSource
         } else {
             ds = new DataSource({
-                database: "test2",
+                database: "test6",
                 driver: require('expo-sqlite'),
                 synchronize: true,
-                entities: [Store],
+                entities: [Store, Product, ConsumedItem],
                 type: "expo",
             })
         }
