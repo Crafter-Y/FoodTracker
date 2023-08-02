@@ -1,9 +1,9 @@
-import { View, Text, RefreshControl, useWindowDimensions, Pressable } from 'react-native'
+import { View, Text, useWindowDimensions, Pressable } from 'react-native'
 import React, { useContext, useEffect, useRef, useState } from 'react'
 import useDatabase from '@/hooks/useDatabase';
 import { ConsumedItem } from '@/entities/consumedItem';
 import { Ionicons } from '@expo/vector-icons';
-import { ScrollView } from 'react-native-gesture-handler';
+import { RefreshControl, ScrollView } from 'react-native-gesture-handler';
 import * as FileSystem from 'expo-file-system';
 import { attrDesc, targetDir } from './new/[storeId]';
 import { Image } from 'expo-image';
