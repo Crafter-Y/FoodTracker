@@ -14,9 +14,10 @@ LogBox.ignoreLogs([
 
 const _layout = () => {
   const [dataSource, setDataSource] = useState<DataSource | null>(null);
+  const [consumptionValid, setConsumptionValid] = useState(false);
 
   return (
-    <AppContext.Provider value={{ dataSource: dataSource, setDataSource }}>
+    <AppContext.Provider value={{ dataSource, setDataSource, consumptionValid, setConsumptionValid }}>
       <Tabs>
         <Tabs.Screen name="index" options={{ href: null }} />
         <Tabs.Screen

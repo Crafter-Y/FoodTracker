@@ -27,6 +27,11 @@ export default function useDatabase() {
         await checkStore(ds, "Zuhause");
         await checkStore(ds, "Anderer");
         await checkStore(ds, "Netto");
+        await checkStore(ds, "Rewe");
+        await checkStore(ds, "Bäcker");
+        await checkStore(ds, "Aldi");
+        await checkStore(ds, "Penny");
+        await checkStore(ds, "Lidl");
     }
 
     const setupDatabase = async () => {
@@ -35,7 +40,7 @@ export default function useDatabase() {
             ds = dataSource
         } else {
             ds = new DataSource({
-                database: "test6",
+                database: "test7",
                 driver: require('expo-sqlite'),
                 synchronize: true,
                 entities: [Store, Product, ConsumedItem],

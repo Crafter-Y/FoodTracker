@@ -9,8 +9,32 @@ export class ConsumedItem {
     @CreateDateColumn()
     date: Date;
 
-    @Column("int")
-    kcal!: number;
+    // attributes
+    @Column("int", { nullable: true })
+    kcal?: number;
+
+    @Column("float", { nullable: true })
+    healthy?: number;
+
+    @Column("int", { nullable: true })
+    liquidMl?: number;
+
+    @Column("float", { nullable: true })
+    price?: number;
+
+    @Column("float", { nullable: true })
+    fat?: number;
+
+    @Column("float", { nullable: true })
+    sugar?: number;
+
+    @Column("float", { nullable: true })
+    protein?: number;
+
+    @Column("float", { nullable: true })
+    salt?: number;
+
+    // end attributes
 
     @ManyToOne(() => Product)
     @JoinColumn()
