@@ -18,7 +18,7 @@ jobs:
           node-version: 16.14.0
           cache: "npm"
       - run: "npm install"
-      - name: "Generate Android Filed"
+      - name: "Generate Android Files"
         run: "npm run run:android"
         continue-on-error: true
       - name: Setup Android SDK
@@ -29,4 +29,7 @@ jobs:
           distribution: temurin
           java-version: 17
           cache: "gradle"
-      - run: "npm run build:android"
+      - name: "Install eas cli"
+        run: npm install eas-cli
+      - name: "Build Project with eas and gradle"
+        run: "npm run build:android"
