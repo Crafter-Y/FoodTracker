@@ -22,10 +22,20 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "de.craftery.foodtracker"
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "845a5141-5f25-41fe-b079-d501b081950f"
+      }
+    },
+    "owner": "crafter_y"
   }
 }
