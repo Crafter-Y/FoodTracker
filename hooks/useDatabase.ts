@@ -4,6 +4,7 @@ import { AppContext, AppContextType } from "@/helpers/AppContext";
 import { Store } from "@/entities/store";
 import { Product } from "@/entities/product";
 import { ConsumedItem } from "@/entities/consumedItem";
+import { StoredImage } from "@/entities/storedImage";
 
 export default function useDatabase() {
     const { dataSource, setDataSource } = useContext(AppContext) as AppContextType;
@@ -40,10 +41,10 @@ export default function useDatabase() {
             ds = dataSource
         } else {
             ds = new DataSource({
-                database: "test7",
+                database: "prodModel1",
                 driver: require('expo-sqlite'),
                 synchronize: true,
-                entities: [Store, Product, ConsumedItem],
+                entities: [Store, Product, ConsumedItem, StoredImage],
                 type: "expo",
             })
         }

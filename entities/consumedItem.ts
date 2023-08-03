@@ -1,5 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn } from "typeorm/browser";
 import { Product } from "./product";
+import { StoredImage } from "./storedImage";
 
 @Entity('consumed_item')
 export class ConsumedItem {
@@ -39,4 +40,8 @@ export class ConsumedItem {
     @ManyToOne(() => Product)
     @JoinColumn()
     product!: Product;
+
+    @ManyToOne(() => StoredImage, { nullable: true })
+    @JoinColumn()
+    image?: StoredImage;
 }

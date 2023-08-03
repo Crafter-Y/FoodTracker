@@ -9,6 +9,8 @@ import { attrDesc, targetDir } from './new/[storeId]';
 import { Image } from 'expo-image';
 import { AppContext, AppContextType } from '@/helpers/AppContext';
 import Modal, { ModalHandle } from '@/components/Modal';
+import { AntDesign } from '@expo/vector-icons';
+import { StoredImage } from '@/entities/storedImage';
 
 const History = () => {
     const { dataSource, isReady } = useDatabase();
@@ -18,15 +20,19 @@ const History = () => {
     const [imageModalUri, setImageModalUri] = useState("");
     const { height, width } = useWindowDimensions();
 
-    const [consumed, setConsumed] = useState<{
+    type HistoryItem = {
         dayPane: boolean,
         hourPane: boolean,
         fmt_date: string,
         hasImage: boolean,
-        imageBase64: string,
+        imageUri: string,
         entry: ConsumedItem
-    }[]>([]);
+    }
 
+    const [consumed, setConsumed] = useState<HistoryItem[]>([]);
+
+    const contextModal = useRef<ModalHandle>(null);
+    const [contextItem, setContextItem] = useState<HistoryItem>(null)
 
     const fetchHistory = async () => {
         let consumedRepo = dataSource.getRepository(ConsumedItem);
@@ -35,6 +41,9 @@ const History = () => {
             order: { date: "DESC" }, relations: {
                 product: {
                     store: true,
+                },
+                image: {
+                    items: true
                 }
             }
         })
@@ -42,6 +51,11 @@ const History = () => {
     }
 
     const getInformationalHistory = async (locCon: ConsumedItem[]) => {
+        const dirInfo = await FileSystem.getInfoAsync(targetDir);
+        if (!dirInfo.exists) {
+            await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
+        }
+
         let dir = await FileSystem.readDirectoryAsync(targetDir);
 
         let lastDay = ""
@@ -53,20 +67,20 @@ const History = () => {
         for (let i = 0; i < locCon.length; i++) {
             const item = locCon[i];
 
-            let returner = {
+            let returner: HistoryItem = {
                 dayPane: false,
                 hourPane: false,
                 hasImage: false,
-                imageBase64: "",
+                imageUri: "",
                 fmt_date: "",
                 entry: item
             }
-
-            let el = dir.filter(el => el.startsWith(item.consumedId + "-thumbnail"))[0]
-            if (el) {
-                returner.hasImage = true
-                returner.imageBase64 = `${targetDir}${el}`
-
+            if (item.image) {
+                let el = dir.filter(el => el.startsWith(item.image.imageId + "-thumbnail"))[0]
+                if (el) {
+                    returner.hasImage = true
+                    returner.imageUri = `${targetDir}${el}`
+                }
             }
 
             let thisDate = item.date.getDate() + "." + item.date.getMonth() + "." + item.date.getFullYear();
@@ -86,6 +100,26 @@ const History = () => {
         }
 
         return arr;
+    }
+
+    const deleteHistoryEntry = async (entry: HistoryItem) => {
+        let dir = await FileSystem.readDirectoryAsync(targetDir);
+
+        let imageRepo = dataSource.getRepository(StoredImage)
+        let consumedRepo = dataSource.getRepository(ConsumedItem);
+
+        await consumedRepo.delete({ consumedId: entry.entry.consumedId })
+
+        if (entry.entry.image && entry.entry.image.items && entry.entry.image.items.length == 1) {
+            let imageId = entry.entry.image.imageId;
+            await imageRepo.delete(imageId);
+
+            let el = dir.filter(el => el.startsWith(imageId + "-thumbnail"))[0]
+            if (el) await FileSystem.deleteAsync(`${targetDir}${el}`)
+        }
+
+        fetchHistory()
+        contextModal.current.toggleModal()
     }
 
     useEffect(() => {
@@ -116,13 +150,16 @@ const History = () => {
                     {entry.hourPane && (
                         <Text className="text-lg">{entry.entry.date.getHours()} Uhr</Text>
                     )}
-                    <View className="bg-gray-200 border-t border-b pr-4 pl-2 flex-row">
+                    <Pressable className="bg-gray-200 border-t border-b pr-4 pl-2 flex-row" onPress={() => {
+                        setContextItem(entry)
+                        contextModal.current.toggleModal();
+                    }}>
                         {entry.hasImage ? (
                             <Pressable onPress={() => {
-                                setImageModalUri(entry.imageBase64)
+                                setImageModalUri(entry.imageUri)
                                 pictureModal.current.toggleModal()
                             }}>
-                                <Image source={{ uri: entry.imageBase64 }} style={{ height: 96, width: 96 }} />
+                                <Image source={{ uri: entry.imageUri }} style={{ height: 96, width: 96 }} />
                             </Pressable>
                         ) : (<Ionicons name="images-sharp" size={96} color="black" />)}
                         <View className="ml-4 justify-center">
@@ -136,14 +173,21 @@ const History = () => {
                                 )}
                             </View>
                         </View>
-                    </View>
+                    </Pressable>
                 </View>
             ))}
             <Modal type='CENTER' ref={pictureModal}>
                 <View className="items-center my-2">
                     <Image source={{ uri: imageModalUri }} style={{ height: Math.min(height, width) * 0.8, width: Math.min(height, width) * 0.8 }} />
                 </View>
+            </Modal>
 
+            <Modal type='CENTER' ref={contextModal}>
+                <Text className="text-2xl text-center font-semibold mt-2 mb-4">{contextItem?.entry.product.name} - {contextItem?.fmt_date} {contextItem?.entry.date.getHours()} Uhr</Text>
+                <Pressable className="border my-4 mx-2 rounded-lg h-10 flex-row items-center px-2" onPress={() => deleteHistoryEntry(contextItem)}>
+                    <AntDesign name="delete" size={24} color="black" />
+                    <Text className='text-2xl ml-4'>Produkt löschen</Text>
+                </Pressable>
             </Modal>
         </ScrollView>
     )

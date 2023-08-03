@@ -14,6 +14,8 @@ import * as FileSystem from 'expo-file-system';
 import { Image } from 'expo-image';
 import { AppContext, AppContextType } from '@/helpers/AppContext';
 import { Entypo } from '@expo/vector-icons';
+import { ScrollView } from 'react-native-gesture-handler';
+import { StoredImage } from '@/entities/storedImage';
 
 export const targetDir = FileSystem.documentDirectory + 'foodtracker/';
 
@@ -77,12 +79,16 @@ const storeId = () => {
             [key in keyof Attributes]: string
         }>({})
 
+    const contextModal = useRef<ModalHandle>(null);
+    const [contextProduct, setContextProduct] = useState<Product>();
+
     const cameraModal = useRef<ModalHandle>(null);
     const camera = useRef<Camera>(null)
     const [image, setImage] = useState<CameraCapturedPicture>()
 
-    const contextModal = useRef<ModalHandle>(null);
-    const [contextProduct, setContextProduct] = useState<Product>();
+    const selectImageModal = useRef<ModalHandle>(null);
+    const [selectImageUris, setSelectImageUris] = useState<string[]>([])
+    const [selectedImageUri, setSelectedImageUri] = useState<string>(null)
 
     const createProduct = async () => {
         if (!isReady) return;
@@ -123,12 +129,16 @@ const storeId = () => {
 
         await consumeRepo.save(item);
 
-        let lastItem = await consumeRepo.findOne({ where: { product: { productId: selectedProduct.productId } }, order: { consumedId: 'DESC' } })
+        let lastItem = await consumeRepo.findOne({
+            where: { product: { productId: selectedProduct.productId } },
+            order: { consumedId: 'DESC' }
+        })
 
         if (lastItem == null) {
             console.log("image could not be saved")
         } else {
-            savePicture(lastItem.consumedId)
+            await savePicture(lastItem)
+            await assignSelectedImage(lastItem)
         }
 
         fetchProducts()
@@ -146,7 +156,7 @@ const storeId = () => {
                     storeId: stId
                 }
             },
-            relations: ["consumedItems"]
+            relations: { consumedItems: { image: true } }
         })
 
         await fillImages(allProducts);
@@ -170,7 +180,7 @@ const storeId = () => {
         cameraModal.current.toggleModal();
     }
 
-    const savePicture = async (id: number) => {
+    const savePicture = async (item: ConsumedItem) => {
         if (!image) return;
 
         const dirInfo = await FileSystem.getInfoAsync(targetDir);
@@ -178,34 +188,78 @@ const storeId = () => {
             await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
         }
 
+        let imageEntry = new StoredImage();
+        imageEntry.items = [item]
+
+        let imageRepo = dataSource.getRepository(StoredImage);
+        await imageRepo.save(imageEntry)
+
+        let lastImageEntry = await imageRepo.findOne({ where: { items: { consumedId: item.consumedId } } })
+        if (lastImageEntry == null) {
+            throw new Error("newly inserted image not found")
+        }
+
+        //console.log(`Saving Picture ID:${lastImageEntry.imageId} for item ID:${item.consumedId}`)
+
         let ending = image.uri.split(".")[image.uri.split(".").length - 1]
-        const fileUri = `${targetDir}${id}-thumbnail.${ending}`;
+        const fileUri = `${targetDir}${lastImageEntry.imageId}-thumbnail.${ending}`;
 
         await FileSystem.writeAsStringAsync(fileUri, image.base64, { encoding: FileSystem.EncodingType.Base64 })
+    }
+
+    const assignSelectedImage = async (item: ConsumedItem) => {
+        if (!selectedImageUri) return;
+
+        let imageRepo = dataSource.getRepository(StoredImage);
+
+        let imageId = selectedImageUri.split("/")[selectedImageUri.split("/").length - 1].split("-")[0]
+
+        let imageEntry = await imageRepo.findOne({
+            where: { imageId: Number(imageId) },
+            relations: { items: true }
+        })
+        if (imageEntry == null) {
+            throw new Error(`Image (ID: ${imageId}) does exist in Database but not in Storage`)
+        }
+        if (imageEntry.items) {
+            imageEntry.items.push(item)
+        } else {
+            console.log("replacing list")
+            imageEntry.items = [item]
+        }
+        await imageRepo.save(imageEntry)
     }
 
     const fillImages = async (products: Product[]) => {
         let arr = []
 
-        let dir = await FileSystem.readDirectoryAsync(targetDir);
+        const dirInfo = await FileSystem.getInfoAsync(targetDir);
+        if (!dirInfo.exists) {
+            await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
+        }
 
+        let dir = await FileSystem.readDirectoryAsync(targetDir);
         for (let i = 0; i < products.length; i++) {
             const product = products[i];
-
-            if (product == null) continue;
 
             let consumed = product.consumedItems;
             if (consumed.length == 0) continue;
             consumed.sort((a, b) => a.consumedId < b.consumedId ? 1 : -1)
 
-            consumed.forEach(el2 => {
-                let el = dir.filter(el => el.startsWith(el2.consumedId + "-thumbnail"))[0]
-                if (el) arr.push({
-                    productId: product.productId,
-                    uri: `${targetDir}${el}`
-                })
-            })
+            for (let j = 0; j < consumed.length; j++) {
+                const item = consumed[j];
 
+                if (item.image) {
+                    let el = dir.filter(el => el.startsWith(item.image.imageId + "-thumbnail"))[0]
+                    if (el) {
+                        arr.push({
+                            productId: product.productId,
+                            uri: `${targetDir}${el}`
+                        })
+                        break;
+                    }
+                }
+            }
         }
 
         setProductUris(arr);
@@ -223,17 +277,21 @@ const storeId = () => {
         if (!isReady) return;
 
         let consumeRepo = dataSource.getRepository(ConsumedItem);
+        let imageRepo = dataSource.getRepository(StoredImage);
 
         for (let i = 0; i < product.consumedItems.length; i++) {
             const consumed = product.consumedItems[i];
             await consumeRepo.delete({ consumedId: consumed.consumedId })
+            if (consumed.image) {
+                await imageRepo.delete(consumed.image.imageId)
+            }
         }
 
         let productRepo = dataSource.getRepository(Product);
         await productRepo.delete({ productId: product.productId })
 
-        fetchProducts();
         setConsumptionValid(false)
+        fetchProducts();
 
         contextModal.current.toggleModal()
     }
@@ -281,6 +339,49 @@ const storeId = () => {
         setConsumeAttributes(cpy)
     }
 
+    const searchFunc = (pred: Product): boolean => {
+        if (search.length == 0) return true;
+
+        let searchTerms = search.toLowerCase().split(" ");
+
+        let productTerms = pred.name.toLowerCase().split(" ")
+
+        let score = 0;
+        searchTerms.forEach(searchTerm => {
+            let matching = productTerms.filter(productTerm => productTerm.includes(searchTerm)).length
+            score += matching;
+        })
+
+        return score > 0;
+    }
+
+    const prepareSelectImage = async (product: Product) => {
+        let consumedRepo = dataSource.getRepository(ConsumedItem);
+
+        let dir = await FileSystem.readDirectoryAsync(targetDir);
+
+        let consumed = await consumedRepo.find({
+            where: { product: { productId: product.productId } },
+            relations: { image: true }
+        })
+
+        let imageIds = []
+        let imageUris = []
+
+        consumed.forEach(consume => {
+            if (consume.image && !imageIds.includes(consume.image.imageId)) {
+                imageIds.push(consume.image.imageId)
+                let el = dir.filter(el => el.startsWith(consume.image.imageId + "-thumbnail"))[0]
+
+                if (el) imageUris.push(`${targetDir}${el}`)
+            }
+        })
+
+        setSelectImageUris(imageUris)
+
+        selectImageModal.current.toggleModal()
+    }
+
     useEffect(() => {
         if (!isReady) return;
 
@@ -288,7 +389,7 @@ const storeId = () => {
     }, [isReady])
 
     return (
-        <View>
+        <ScrollView>
             <Pressable className="border m-2 mx-2 rounded-lg h-12 flex-row items-center px-2" onPress={() => {
                 setCreateAttributes([]);
                 setCreateAttributesText({})
@@ -334,13 +435,14 @@ const storeId = () => {
             </View>
 
             {
-                products.map(product => (
+                products.filter(searchFunc).map(product => (
                     <Pressable key={product.productId} className="border rounded-lg h-16 mx-2 flex-row justify-between items-center px-2 my-1" onPress={() => {
                         setSelectedProduct(product);
 
                         initializeConsumeAttr(product)
 
                         setImage(null)
+                        setSelectedImageUri(null)
                         selectModal.current.toggleModal()
                     }}>
                         {getProductImage(product.productId) ?
@@ -393,12 +495,17 @@ const storeId = () => {
                     </View>
                 )}
 
-                {!image && (<Pressable className="border my-4 mx-2 rounded-lg h-10 flex-row items-center px-2" onPress={startCamera}>
+                {!image && !selectedImageUri && (<Pressable className="border mt-4 mx-2 rounded-lg h-10 flex-row items-center px-2" onPress={startCamera}>
                     <AntDesign name="camerao" size={24} color="black" />
                     <Text className='text-2xl ml-4'>Foto hinzufügen</Text>
                 </Pressable>)}
 
-                <Pressable className="border my-4 mx-2 rounded-lg h-10 flex-row items-center px-2" onPress={() => consumeProduct()}>
+                {!image && !selectedImageUri && (<Pressable className="border mb-4 mt-2 mx-2 rounded-lg h-10 flex-row items-center px-2" onPress={() => prepareSelectImage(selectedProduct)}>
+                    <MaterialCommunityIcons name="view-gallery-outline" size={24} color="black" />
+                    <Text className='text-2xl ml-4'>Foto auswählen</Text>
+                </Pressable>)}
+
+                <Pressable className="border my-4 mx-2 rounded-lg h-10 flex-row items-center px-2" onPress={consumeProduct}>
                     <AntDesign name="pluscircle" size={16} color="black" />
                     <Text className='text-2xl ml-4'>Konsumieren</Text>
                 </Pressable>
@@ -416,7 +523,27 @@ const storeId = () => {
                     </Pressable>
                 </View>
             </Modal>
-        </View >
+
+            <Modal type='CENTER' ref={selectImageModal}>
+                <Text className="text-center text-2xl font-semibold mt-2">Foto auswählen</Text>
+
+                {selectImageUris?.length == 0 && (
+                    <Text>Keine Bilder vorhanden</Text>
+                )}
+
+                <View className='flex-row flex-wrap justify-between px-2'>
+                    {selectImageUris?.map(uri => (
+                        <Pressable key={uri} onPress={() => {
+                            setSelectedImageUri(uri)
+                            selectImageModal.current.toggleModal()
+                        }}>
+                            <Image source={{ uri }} style={{ width: Math.min(height, width) * 0.28, height: Math.min(height, width) * 0.28 }} className='my-1' />
+                        </Pressable>
+                    ))}
+                </View>
+
+            </Modal>
+        </ScrollView>
     )
 }
 
