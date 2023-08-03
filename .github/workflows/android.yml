@@ -12,26 +12,21 @@ jobs:
     steps:
       - name: checkout code
         uses: actions/checkout@v3
+
       - name: Use Node.js 16.14.0
         uses: actions/setup-node@v3
         with:
           node-version: 16.14.0
           cache: "npm"
-      - run: "npm install"
-      - name: "Generate Android Files"
-        run: "npm run run:android"
-        continue-on-error: true
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
-      - name: setup jdk
-        uses: actions/setup-java@v3
+
+      - name: 🏗 Setup EAS
+        uses: expo/expo-github-action@v8
         with:
-          distribution: temurin
-          java-version: 17
-          cache: "gradle"
-      - name: "Install eas cli"
-        run: npm install eas-cli
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      - name: "Build Project with eas and gradle"
-        run: "npm run build:android"
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🚀 Build app
+        run: eas build --non-interactive --platform android --profile preview --local
