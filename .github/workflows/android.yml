@@ -31,5 +31,7 @@ jobs:
           cache: "gradle"
       - name: "Install eas cli"
         run: npm install eas-cli
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       - name: "Build Project with eas and gradle"
         run: "npm run build:android"
